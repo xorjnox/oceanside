@@ -1,0 +1,9 @@
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/binaries/croc-*
+.DS_Store
+*.wav
+__pycache__/
+*.pyc
+.env
