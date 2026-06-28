@@ -13,20 +13,25 @@ import {
 } from "firebase/database";
 import type { Participant, SessionConfig } from "../stores/session";
 
-// TODO: Replace with your Firebase project config from
-// https://console.firebase.google.com → Project Settings → Your apps → Web app
 const firebaseConfig = {
-  apiKey: "REPLACE_WITH_YOUR_API_KEY",
-  authDomain: "REPLACE_WITH_YOUR_AUTH_DOMAIN",
-  databaseURL: "REPLACE_WITH_YOUR_DATABASE_URL",
-  projectId: "REPLACE_WITH_YOUR_PROJECT_ID",
-  storageBucket: "REPLACE_WITH_YOUR_STORAGE_BUCKET",
-  messagingSenderId: "REPLACE_WITH_YOUR_MESSAGING_SENDER_ID",
-  appId: "REPLACE_WITH_YOUR_APP_ID",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
 const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
+
+// Lazy getter: never call getDatabase() at module load. With a missing or
+// placeholder databaseURL it throws, which would blank the whole app on import.
+let _db: ReturnType<typeof getDatabase> | null = null;
+function db() {
+  if (!_db) _db = getDatabase(app);
+  return _db;
+}
 
 // ── Session lifecycle ──────────────────────────────────────────────────────────
 
@@ -37,7 +42,7 @@ export async function createSession(
   hostId: string,
   hostName: string
 ) {
-  const sessionRef = ref(db, `sessions/${sessionId}`);
+  const sessionRef = ref(db(), `sessions/${sessionId}`);
   await set(sessionRef, {
     session_name: sessionName,
     created_at: serverTimestamp(),
@@ -55,7 +60,7 @@ export async function joinSession(
   role: "host" | "participant"
 ) {
   const presenceRef = ref(
-    db,
+    db(),
     `sessions/${sessionId}/participants/${participantId}`
   );
   const participant: Omit<Participant, "id"> = {
@@ -76,7 +81,7 @@ export async function joinSession(
 export async function getSessionConfig(
   sessionId: string
 ): Promise<{ config: SessionConfig; hostId: string; sessionName: string } | null> {
-  const snap = await get(ref(db, `sessions/${sessionId}`));
+  const snap = await get(ref(db(), `sessions/${sessionId}`));
   if (!snap.exists()) return null;
   const val = snap.val();
   return {
@@ -93,14 +98,14 @@ export function updateMyStatus(
   participantId: string,
   status: Participant["status"]
 ) {
-  return update(ref(db, `sessions/${sessionId}/participants/${participantId}`), {
+  return update(ref(db(), `sessions/${sessionId}/participants/${participantId}`), {
     status,
     last_heartbeat: serverTimestamp(),
   });
 }
 
 export function sendHeartbeat(sessionId: string, participantId: string) {
-  return update(ref(db, `sessions/${sessionId}/participants/${participantId}`), {
+  return update(ref(db(), `sessions/${sessionId}/participants/${participantId}`), {
     last_heartbeat: serverTimestamp(),
   });
 }
@@ -111,7 +116,7 @@ export function setSessionPhase(
   sessionId: string,
   phase: "waiting" | "recording" | "stopped" | "collecting"
 ) {
-  return update(ref(db, `sessions/${sessionId}/state`), { phase });
+  return update(ref(db(), `sessions/${sessionId}/state`), { phase });
 }
 
 // ── Events (beeps, start, stop, croc code) ────────────────────────────────────
@@ -123,7 +128,7 @@ export function pushEvent(
   type: EventType,
   payload: Record<string, unknown> = {}
 ) {
-  const eventsRef = ref(db, `sessions/${sessionId}/events`);
+  const eventsRef = ref(db(), `sessions/${sessionId}/events`);
   return push(eventsRef, {
     type,
     ts: serverTimestamp(),
@@ -132,7 +137,7 @@ export function pushEvent(
 }
 
 export function incrementBeepCount(sessionId: string, newCount: number) {
-  return update(ref(db, `sessions/${sessionId}/state`), {
+  return update(ref(db(), `sessions/${sessionId}/state`), {
     beep_count: newCount,
   });
 }
@@ -143,7 +148,7 @@ export function subscribeParticipants(
   sessionId: string,
   cb: (participants: Record<string, Participant>) => void
 ): () => void {
-  const r = ref(db, `sessions/${sessionId}/participants`);
+  const r = ref(db(), `sessions/${sessionId}/participants`);
   const unsub = onValue(r, (snap) => {
     cb((snap.val() as Record<string, Participant>) ?? {});
   });
@@ -154,7 +159,7 @@ export function subscribePhase(
   sessionId: string,
   cb: (phase: string) => void
 ): () => void {
-  const r = ref(db, `sessions/${sessionId}/state/phase`);
+  const r = ref(db(), `sessions/${sessionId}/state/phase`);
   const unsub = onValue(r, (snap) => {
     if (snap.exists()) cb(snap.val() as string);
   });
@@ -165,7 +170,7 @@ export function subscribeEvents(
   sessionId: string,
   cb: (event: { type: EventType; ts: number; payload: Record<string, unknown> }) => void
 ): () => void {
-  const r = ref(db, `sessions/${sessionId}/events`);
+  const r = ref(db(), `sessions/${sessionId}/events`);
   let initialized = false;
   let knownKeys = new Set<string>();
 
@@ -192,11 +197,11 @@ export function subscribeBeepCount(
   sessionId: string,
   cb: (count: number) => void
 ): () => void {
-  const r = ref(db, `sessions/${sessionId}/state/beep_count`);
+  const r = ref(db(), `sessions/${sessionId}/state/beep_count`);
   const unsub = onValue(r, (snap) => {
     if (snap.exists()) cb(snap.val() as number);
   });
   return unsub;
 }
 
-export { db, ref, type DatabaseReference };
+export { ref, type DatabaseReference };
