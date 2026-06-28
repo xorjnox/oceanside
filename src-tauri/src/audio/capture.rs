@@ -14,7 +14,13 @@ pub fn list_input_devices() -> Result<Vec<DeviceInfo>> {
         .map_err(|e| anyhow!("cannot list devices: {e}"))?;
     let mut out = Vec::new();
     for (i, device) in devices.enumerate() {
-        let name = device.name().unwrap_or_else(|_| format!("Device {i}"));
+        // cpal 0.18 dropped Device::name(); the name now comes from description().
+        let name = device
+            .description()
+            .map(|d| d.name().to_string())
+            .ok()
+            .filter(|n| !n.trim().is_empty())
+            .unwrap_or_else(|| format!("Input {i}"));
         out.push(DeviceInfo {
             id: i.to_string(),
             name,

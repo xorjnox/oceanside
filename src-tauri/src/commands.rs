@@ -59,10 +59,10 @@ pub async fn start_mic_test(
 ) -> Result<(), String> {
     let (device, supported_config) =
         get_device_by_id(&device_id).map_err(|e| e.to_string())?;
-    let sample_rate = supported_config.sample_rate().0;
+    let sample_rate = supported_config.sample_rate();
 
     let tmp_path = std::env::temp_dir()
-        .join("voicesync_mic_test.wav")
+        .join("oceanside_mic_test.wav")
         .to_string_lossy()
         .to_string();
 
@@ -76,7 +76,7 @@ pub async fn start_mic_test(
         let err_fn = |e| eprintln!("stream error: {e}");
         let stream = match supported_config.sample_format() {
             cpal::SampleFormat::F32 => device.build_input_stream(
-                &stream_config,
+                stream_config.clone(),
                 move |data: &[f32], _| {
                     let level = rms_level(data);
                     let _ = app_clone.emit("audio-level", level);
@@ -120,7 +120,7 @@ pub async fn stop_mic_test(state: State<'_, AudioState>) -> Result<String, Strin
 
 #[tauri::command]
 pub fn play_mic_test() -> Result<(), String> {
-    let path = std::env::temp_dir().join("voicesync_mic_test.wav");
+    let path = std::env::temp_dir().join("oceanside_mic_test.wav");
     if !path.exists() {
         return Err("no mic test recording found".into());
     }
@@ -158,7 +158,7 @@ pub async fn start_recording(
 
     let (device, supported_config) =
         get_device_by_id(&config.device_id).map_err(|e| e.to_string())?;
-    let sample_rate = supported_config.sample_rate().0;
+    let sample_rate = supported_config.sample_rate();
     let (stop_tx, mut stop_rx) = oneshot::channel::<()>();
     let (beep_tx, beep_rx) = mpsc::channel::<BeepParams>();
 
@@ -185,7 +185,7 @@ pub async fn start_recording(
         let app_c2 = app_clone.clone();
         let stream = match supported_config.sample_format() {
             cpal::SampleFormat::F32 => device.build_input_stream(
-                &stream_config,
+                stream_config.clone(),
                 move |data: &[f32], _| {
                     let level = rms_level(data);
                     let _ = app_c2.emit("audio-level", level);
@@ -286,7 +286,7 @@ pub fn play_beep(freq_hz: f32, duration_sec: f32) -> Result<(), String> {
         .default_output_device()
         .ok_or("no output device")?;
     let config = device.default_output_config().map_err(|e| e.to_string())?;
-    let sample_rate = config.sample_rate().0;
+    let sample_rate = config.sample_rate();
     let beep = generate_beep_i16(freq_hz, duration_sec, sample_rate);
     let beep_arc = std::sync::Arc::new(beep);
     let pos = std::sync::Arc::new(AtomicUsize::new(0));
@@ -299,7 +299,7 @@ pub fn play_beep(freq_hz: f32, duration_sec: f32) -> Result<(), String> {
     let stream_config = config.config();
     let stream = match config.sample_format() {
         cpal::SampleFormat::F32 => device.build_output_stream(
-            &stream_config,
+            stream_config.clone(),
             move |data: &mut [f32], _| {
                 for d in data.iter_mut() {
                     let idx = pos_clone.fetch_add(1, Ordering::SeqCst);
