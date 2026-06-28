@@ -25,19 +25,15 @@ export default function MicTest() {
   const [testState, setTestState] = useState<TestState>("idle");
   const [countdown, setCountdown] = useState(5);
   const [audioLevel, setAudioLevel] = useState(0);
-  const [eventCount, setEventCount] = useState(0);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    listAudioDevices().then(devs => {
-      console.log("audio devices:", devs);
-      setDevices(devs);
-    }).catch(console.error);
+    listAudioDevices().then(devs => setDevices(devs)).catch(console.error);
   }, []);
 
   useEffect(() => {
     const unsub = onAudioLevel(lvl => {
       setAudioLevel(lvl);
-      setEventCount(c => c + 1);
       recStore.setAudioLevel(lvl);
     });
     return () => { unsub.then(fn => fn()); };
@@ -56,18 +52,39 @@ export default function MicTest() {
 
   const handleStartTest = async () => {
     if (!recStore.deviceId) return;
+    setError("");
     setTestState("recording");
     setCountdown(5);
-    await startMicTest(recStore.deviceId);
+    try {
+      await startMicTest(recStore.deviceId);
+    } catch (e) {
+      setTestState("idle");
+      setError(`mic access failed: ${e}`);
+      return;
+    }
     let c = 5;
     const timer = setInterval(() => {
       c -= 1;
       setCountdown(c);
       if (c <= 0) {
         clearInterval(timer);
-        stopMicTest().then(() => setTestState("recorded")).catch(console.error);
+        stopMicTest()
+          .then(() => setTestState("recorded"))
+          .catch(e => { setTestState("idle"); setError(`recording failed: ${e}`); });
       }
     }, 1000);
+  };
+
+  const handlePlayback = async () => {
+    setError("");
+    setTestState("playing");
+    try {
+      await playMicTest();
+      setTestState("recorded");
+    } catch (e) {
+      setTestState("recorded");
+      setError(`playback failed: ${e}`);
+    }
   };
 
   const handleReady = async () => {
@@ -91,7 +108,7 @@ export default function MicTest() {
           <select className="input-field" value={recStore.deviceId ?? ""}
             onChange={e => {
               const d = devices.find(d => d.id === e.target.value);
-              if (d) recStore.setDevice(d.id, d.name);
+              if (d) { recStore.setDevice(d.id, d.name); setError(""); }
             }}>
             <option value="" disabled>select a microphone…</option>
             {devices.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
@@ -103,11 +120,19 @@ export default function MicTest() {
             <div className="h-full bg-gradient-to-r from-ocean-300 to-ocean-500 rounded-full transition-all duration-75"
               style={{ width: `${toVu(audioLevel)}%` }} />
           </div>
-          <div className="flex justify-between mt-1">
-            <p className="text-xs text-ocean-300">input level</p>
-            <p className="text-xs font-mono text-ocean-400">events: {eventCount} · {audioLevel.toFixed(5)}</p>
-          </div>
+          <p className="text-xs text-ocean-300 mt-1">input level</p>
         </div>
+
+        {error && (
+          <div className="bg-red-50 border border-red-100 rounded-2xl px-4 py-3">
+            <p className="text-red-500 text-xs font-medium leading-relaxed">{error}</p>
+            {error.includes("mic access") && (
+              <p className="text-red-400 text-xs mt-1">
+                → System Settings → Privacy & Security → Microphone → enable oceanside
+              </p>
+            )}
+          </div>
+        )}
 
         <div className="flex gap-2.5">
           <button onClick={handleStartTest}
@@ -115,14 +140,14 @@ export default function MicTest() {
             className="btn-secondary flex-1 text-sm py-2.5">
             {testState === "recording" ? `recording… ${countdown}s` : "test mic (5s)"}
           </button>
-          <button onClick={() => { setTestState("playing"); playMicTest().then(() => setTestState("recorded")).catch(console.error); }}
+          <button onClick={handlePlayback}
             disabled={testState !== "recorded"}
             className="btn-secondary flex-1 text-sm py-2.5">
             {testState === "playing" ? "playing…" : "play back"}
           </button>
         </div>
 
-        {testState === "recorded" && (
+        {testState === "recorded" && !error && (
           <p className="text-xs text-emerald-500 font-semibold text-center">✓ sounding good</p>
         )}
       </div>
