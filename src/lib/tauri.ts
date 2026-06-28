@@ -1,5 +1,29 @@
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { invoke as _invoke } from "@tauri-apps/api/core";
+import { listen as _listen } from "@tauri-apps/api/event";
+
+const isTauri = "__TAURI_INTERNALS__" in window;
+
+// When running in a plain browser (handy for testing the signaling flow with a
+// second "participant"), Tauri IPC isn't available. Return mock values so the
+// UI renders and the join → ready → recording flow still works end-to-end.
+const browserStub: Record<string, unknown> = {
+  list_audio_devices: [{ id: "browser", name: "Browser (mock mic — no real recording)" }],
+  get_default_output_path: "/tmp/oceanside-browser.wav",
+  get_disk_space: { free: 0, total: 0 },
+  stop_mic_test: "/tmp/oceanside-browser.wav",
+  stop_recording: "/tmp/oceanside-browser.wav",
+};
+
+const invoke: typeof _invoke = isTauri
+  ? _invoke
+  : ((cmd: string, ...args: unknown[]) => {
+      console.warn(`[browser stub] invoke("${cmd}")`, ...args);
+      return Promise.resolve(browserStub[cmd]);
+    }) as typeof _invoke;
+
+const listen: typeof _listen = isTauri
+  ? _listen
+  : (_event, _cb) => Promise.resolve(() => {});
 
 export interface AudioDevice {
   id: string;
@@ -16,7 +40,7 @@ export interface RecordingConfig {
 }
 
 export const listAudioDevices = (): Promise<AudioDevice[]> =>
-  invoke("list_audio_devices");
+  invoke<AudioDevice[]>("list_audio_devices").then((d) => d ?? []);
 
 export const startMicTest = (deviceId: string): Promise<void> =>
   invoke("start_mic_test", { deviceId });

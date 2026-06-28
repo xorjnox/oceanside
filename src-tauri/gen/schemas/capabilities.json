@@ -1,1 +1,1 @@
-{}
+{"default":{"identifier":"default","description":"Core permissions for oceanside: IPC events (VU meter, beeps, croc progress), window controls, and shell.","local":true,"windows":["main"],"permissions":["core:default","core:event:default","shell:default"]}}

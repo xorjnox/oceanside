@@ -13,29 +13,42 @@ import {
 
 type TestState = "idle" | "recording" | "recorded" | "playing";
 
+const toVu = (lvl: number) => {
+  if (lvl <= 0) return 0;
+  return Math.max(0, Math.min(100, ((20 * Math.log10(lvl) + 60) / 60) * 100));
+};
+
 export default function MicTest() {
   const store = useSessionStore();
   const recStore = useRecordingStore();
   const [devices, setDevices] = useState<AudioDevice[]>([]);
   const [testState, setTestState] = useState<TestState>("idle");
   const [countdown, setCountdown] = useState(5);
+  const [audioLevel, setAudioLevel] = useState(0);
+  const [eventCount, setEventCount] = useState(0);
 
   useEffect(() => {
-    listAudioDevices().then(setDevices).catch(console.error);
+    listAudioDevices().then(devs => {
+      console.log("audio devices:", devs);
+      setDevices(devs);
+    }).catch(console.error);
   }, []);
 
   useEffect(() => {
-    const unsub = onAudioLevel((level) => recStore.setAudioLevel(level));
-    return () => { unsub.then((fn) => fn()); };
+    const unsub = onAudioLevel(lvl => {
+      setAudioLevel(lvl);
+      setEventCount(c => c + 1);
+      recStore.setAudioLevel(lvl);
+    });
+    return () => { unsub.then(fn => fn()); };
   }, []);
 
-  // Participants: wait for host start signal then go to recording
   useEffect(() => {
     if (!store.sessionId || store.role === "host") return;
-    const unsubPhase = subscribePhase(store.sessionId, (phase) => {
+    const unsubPhase = subscribePhase(store.sessionId, phase => {
       if (phase === "recording") store.setScreen("recording");
     });
-    const unsubEvents = subscribeEvents(store.sessionId, (ev) => {
+    const unsubEvents = subscribeEvents(store.sessionId, ev => {
       if (ev.type === "start_all") store.setScreen("recording");
     });
     return () => { unsubPhase(); unsubEvents(); };
@@ -46,7 +59,6 @@ export default function MicTest() {
     setTestState("recording");
     setCountdown(5);
     await startMicTest(recStore.deviceId);
-
     let c = 5;
     const timer = setInterval(() => {
       c -= 1;
@@ -58,89 +70,71 @@ export default function MicTest() {
     }, 1000);
   };
 
-  const handlePlayback = async () => {
-    setTestState("playing");
-    await playMicTest();
-    setTestState("recorded");
-  };
-
   const handleReady = async () => {
     if (!store.sessionId || !store.myParticipantId) return;
     await updateMyStatus(store.sessionId, store.myParticipantId, "ready");
-    if (store.role === "host") {
-      store.setScreen("recording");
-    }
-    // Participants stay on this screen until host fires start_all
+    if (store.role === "host") store.setScreen("recording");
   };
 
-  const vuPercent = Math.round(recStore.audioLevel * 100);
-
   return (
-    <div className="flex flex-col gap-6 w-full max-w-sm">
-      <h2 className="text-xl font-semibold">Mic test</h2>
-      <p className="text-sm text-gray-400">
-        Pick your mic, do a 5-second test, then mark yourself ready.
-      </p>
-
-      <div>
-        <label className="block text-sm text-gray-400 mb-1">Input device</label>
-        <select
-          className="w-full bg-gray-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-          value={recStore.deviceId ?? ""}
-          onChange={(e) => {
-            const dev = devices.find((d) => d.id === e.target.value);
-            if (dev) recStore.setDevice(dev.id, dev.name);
-          }}
-        >
-          <option value="" disabled>
-            Select a device…
-          </option>
-          {devices.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* VU meter */}
-      <div className="h-3 bg-gray-800 rounded-full overflow-hidden">
-        <div
-          className="h-full bg-brand-500 transition-all duration-75"
-          style={{ width: `${vuPercent}%` }}
-        />
-      </div>
-
-      <div className="flex gap-3">
-        <button
-          onClick={handleStartTest}
-          disabled={!recStore.deviceId || testState === "recording"}
-          className="flex-1 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 rounded-lg text-sm font-medium transition-colors"
-        >
-          {testState === "recording"
-            ? `Recording… ${countdown}s`
-            : "Test mic (5s)"}
+    <div className="flex flex-col gap-5 w-full max-w-sm">
+      <div className="flex items-center gap-3">
+        <button onClick={() => store.setScreen("home")} className="text-ocean-400 hover:text-ocean-600 transition-colors text-sm font-semibold">
+          ← back
         </button>
-        <button
-          onClick={handlePlayback}
-          disabled={testState !== "recorded"}
-          className="flex-1 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 rounded-lg text-sm font-medium transition-colors"
-        >
-          {testState === "playing" ? "Playing…" : "Play back"}
-        </button>
+        <h2 className="text-xl font-bold text-ocean-900">mic check</h2>
       </div>
 
-      <button
-        onClick={handleReady}
-        disabled={!recStore.deviceId}
-        className="w-full py-3 bg-brand-600 hover:bg-brand-700 disabled:opacity-40 rounded-lg font-semibold transition-colors"
-      >
-        {store.role === "host" ? "Go to recording →" : "Ready — waiting for host"}
+      <div className="glass-card p-5 flex flex-col gap-4">
+        <div>
+          <label className="label">input device</label>
+          <select className="input-field" value={recStore.deviceId ?? ""}
+            onChange={e => {
+              const d = devices.find(d => d.id === e.target.value);
+              if (d) recStore.setDevice(d.id, d.name);
+            }}>
+            <option value="" disabled>select a microphone…</option>
+            {devices.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <div className="h-2.5 bg-ocean-100 rounded-full overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-ocean-300 to-ocean-500 rounded-full transition-all duration-75"
+              style={{ width: `${toVu(audioLevel)}%` }} />
+          </div>
+          <div className="flex justify-between mt-1">
+            <p className="text-xs text-ocean-300">input level</p>
+            <p className="text-xs font-mono text-ocean-400">events: {eventCount} · {audioLevel.toFixed(5)}</p>
+          </div>
+        </div>
+
+        <div className="flex gap-2.5">
+          <button onClick={handleStartTest}
+            disabled={!recStore.deviceId || testState === "recording"}
+            className="btn-secondary flex-1 text-sm py-2.5">
+            {testState === "recording" ? `recording… ${countdown}s` : "test mic (5s)"}
+          </button>
+          <button onClick={() => { setTestState("playing"); playMicTest().then(() => setTestState("recorded")).catch(console.error); }}
+            disabled={testState !== "recorded"}
+            className="btn-secondary flex-1 text-sm py-2.5">
+            {testState === "playing" ? "playing…" : "play back"}
+          </button>
+        </div>
+
+        {testState === "recorded" && (
+          <p className="text-xs text-emerald-500 font-semibold text-center">✓ sounding good</p>
+        )}
+      </div>
+
+      <button onClick={handleReady} disabled={!recStore.deviceId} className="btn-primary w-full">
+        {store.role === "host" ? "go to recording →" : "i'm ready"}
       </button>
 
       {store.role === "participant" && (
-        <p className="text-xs text-gray-500 text-center">
-          Session: <span className="font-mono">{store.sessionId}</span>
+        <p className="text-center text-xs text-ocean-300">
+          waiting for host to start ·{" "}
+          <span className="font-mono font-semibold">{store.sessionId}</span>
         </p>
       )}
     </div>

@@ -1,12 +1,59 @@
+@import url("https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600;700;800;900&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   body {
-    @apply bg-gray-950 text-gray-100 font-sans antialiased select-none;
+    @apply antialiased select-none;
   }
   * {
     @apply box-border;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-white/70 backdrop-blur-md rounded-3xl shadow-glass border border-white/60;
+  }
+
+  .btn-primary {
+    @apply rounded-full px-6 py-3 font-bold text-white
+           bg-gradient-to-r from-ocean-500 to-ocean-600
+           shadow-ocean hover:shadow-ocean-lg
+           hover:-translate-y-0.5 active:translate-y-0
+           transition-all duration-200
+           disabled:opacity-40 disabled:cursor-not-allowed disabled:translate-y-0 disabled:shadow-none;
+  }
+
+  .btn-secondary {
+    @apply rounded-full px-6 py-3 font-semibold text-ocean-700
+           bg-white/80 border border-ocean-200
+           shadow-ocean-sm hover:shadow-ocean hover:bg-white
+           hover:-translate-y-0.5 active:translate-y-0
+           transition-all duration-200
+           disabled:opacity-40 disabled:cursor-not-allowed disabled:translate-y-0 disabled:shadow-none;
+  }
+
+  .btn-danger {
+    @apply rounded-full px-6 py-3 font-bold text-white
+           bg-gradient-to-r from-red-400 to-red-500
+           shadow-ocean hover:shadow-ocean-lg
+           hover:-translate-y-0.5 active:translate-y-0
+           transition-all duration-200
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  .input-field {
+    @apply w-full rounded-2xl px-4 py-3 text-ocean-900 font-medium
+           bg-white/80 border border-ocean-100 outline-none
+           placeholder:text-ocean-300
+           focus:border-ocean-400 focus:ring-2 focus:ring-ocean-200
+           transition-all duration-150;
+  }
+
+  .label {
+    @apply block text-xs font-bold text-ocean-500 uppercase tracking-widest mb-1.5;
   }
 }

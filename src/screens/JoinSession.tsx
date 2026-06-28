@@ -16,18 +16,15 @@ export default function JoinSession() {
     const id = sessionId.trim().toLowerCase();
     const name = myName.trim();
     if (!id || !name) return;
-
     setJoining(true);
     setError("");
-
     try {
       const result = await getSessionConfig(id);
       if (!result) {
-        setError("Session not found. Check the ID and try again.");
+        setError("session not found — check the id and try again");
         setJoining(false);
         return;
       }
-
       const participantId = `p_${nanoid().slice(0, 6)}`;
       store.setSessionId(id);
       store.setSessionName(result.sessionName);
@@ -35,59 +32,46 @@ export default function JoinSession() {
       store.setRole("participant");
       store.setMyParticipantId(participantId);
       store.setConfig(result.config);
-
       await joinSession(id, participantId, name, "participant");
       await updateMyStatus(id, participantId, "joined");
-
       store.setScreen("mic-test");
-    } catch (e) {
-      setError("Failed to join. Check your connection.");
+    } catch {
+      setError("failed to join — check your connection");
       setJoining(false);
     }
   };
 
   return (
-    <div className="flex flex-col gap-6 w-full max-w-sm">
+    <div className="flex flex-col gap-5 w-full max-w-sm">
       <div className="flex items-center gap-3">
-        <button
-          onClick={() => store.setScreen("home")}
-          className="text-gray-400 hover:text-white transition-colors"
-        >
-          ← Back
+        <button onClick={() => store.setScreen("home")} className="text-ocean-400 hover:text-ocean-600 transition-colors text-sm font-semibold">
+          ← back
         </button>
-        <h2 className="text-xl font-semibold">Join session</h2>
+        <h2 className="text-xl font-bold text-ocean-900">join a session</h2>
       </div>
 
-      <div className="flex flex-col gap-4">
+      <div className="glass-card p-6 flex flex-col gap-4">
         <div>
-          <label className="block text-sm text-gray-400 mb-1">Session ID</label>
-          <input
-            className="w-full bg-gray-800 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500 font-mono"
-            placeholder="pod-x7k2"
-            value={sessionId}
-            onChange={(e) => setSessionIdLocal(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleJoin()}
-          />
+          <label className="label">session id</label>
+          <input className="input-field font-mono tracking-widest" placeholder="pod-x7k2"
+            value={sessionId} onChange={e => setSessionIdLocal(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && handleJoin()} />
         </div>
         <div>
-          <label className="block text-sm text-gray-400 mb-1">Your name</label>
-          <input
-            className="w-full bg-gray-800 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500"
-            placeholder="Alice"
-            value={myName}
-            onChange={(e) => setMyNameLocal(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleJoin()}
-          />
+          <label className="label">your name</label>
+          <input className="input-field" placeholder="Alice"
+            value={myName} onChange={e => setMyNameLocal(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && handleJoin()} />
         </div>
 
-        {error && <p className="text-red-400 text-sm">{error}</p>}
+        {error && (
+          <div className="bg-red-50 border border-red-100 rounded-2xl px-4 py-2.5">
+            <p className="text-red-500 text-sm font-medium">{error}</p>
+          </div>
+        )}
 
-        <button
-          onClick={handleJoin}
-          disabled={joining || !sessionId.trim() || !myName.trim()}
-          className="w-full py-3 bg-brand-600 hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg font-semibold transition-colors"
-        >
-          {joining ? "Joining…" : "Join →"}
+        <button onClick={handleJoin} disabled={joining || !sessionId.trim() || !myName.trim()} className="btn-primary w-full mt-1">
+          {joining ? "joining…" : "join →"}
         </button>
       </div>
     </div>

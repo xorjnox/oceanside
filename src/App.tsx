@@ -18,12 +18,12 @@ export default function App() {
   const screen = useSessionStore((s) => s.screen);
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      {screen === "home" && <Home />}
-      {screen === "host-setup" && <HostSession />}
-      {screen === "join" && <JoinSession />}
-      {screen === "mic-test" && <MicTest />}
-      {screen === "recording" && <Recording />}
+    <div className="min-h-screen flex items-center justify-center p-6 bg-ocean-gradient">
+      {screen === "home"         && <Home />}
+      {screen === "host-setup"   && <HostSession />}
+      {screen === "join"         && <JoinSession />}
+      {screen === "mic-test"     && <MicTest />}
+      {screen === "recording"    && <Recording />}
       {screen === "post-session" && <PostSession />}
     </div>
   );
